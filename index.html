@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0f172a"/>
+  <link rel="manifest" href="/manifest.json">
+  <title>Cuenta regresiva — 7 de junio de 2026</title>
+  <style>
+    body{font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:linear-gradient(135deg,#ffffff,#f0f4ff);color:#0b1220;transition:background 0.3s,color 0.3s}
+    .dark body{background:linear-gradient(135deg,#0f172a,#001e3c);color:#fff}
+    .card{background:rgba(255,255,255,0.9);padding:22px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,23,0.06);text-align:center;min-width:300px}
+    .dark .card{background:rgba(255,255,255,0.03);box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+    h1{margin:0 0 12px;font-size:18px}
+    .time{font-size:26px;font-weight:700;letter-spacing:0.4px}
+    .controls{margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    button{padding:8px 10px;border-radius:8px;border:0;cursor:pointer}
+    input[type=color]{height:36px;padding:0;border-radius:8px;border:0}
+    label{font-size:13px}
+    .small{font-size:12px;color:rgba(0,0,0,0.6);margin-top:10px}
+    .dark .small{color:rgba(255,255,255,0.75)}
+  </style>
+</head>
+<body>
+  <div class="card" role="application" aria-label="Cuenta regresiva">
+    <h1 id="title">Cuenta regresiva — 7 de junio de 2026 00:00 (RD)</h1>
+    <div id="count" class="time">Cargando...</div>
+    <div class="controls">
+      <label>Color: <input id="color" type="color" value="#0b69ff" title="Color principal"></label>
+      <button id="toggleTheme">Cambiar tema</button>
+      <button id="edit">Personalizar fecha</button>
+    </div>
+    <div class="small">Adaptable a modo oscuro/claro del sistema. Guarda preferencias localmente.</div>
+  </div>
+
+  <dialog id="dialog">
+    <form method="dialog" style="padding:18px;min-width:280px">
+      <h3>Cambiar fecha objetivo</h3>
+      <label>Fecha y hora (zona RD):<br>
+        <input id="targetInput" type="datetime-local" step="1">
+      </label>
+      <p style="margin-top:10px"><button id="save">Guardar</button> <button id="cancel">Cancelar</button></p>
+    </form>
+  </dialog>
+
+  <script>
+    const defaultTarget = "2026-06-07T00:00:00-04:00";
+    const targetKey = "countdown_target";
+    const colorKey = "countdown_color";
+    const themeKey = "countdown_theme";
+
+    function loadSettings() {
+      const t = localStorage.getItem(targetKey) || defaultTarget;
+      const c = localStorage.getItem(colorKey) || "#0b69ff";
+      const th = localStorage.getItem(themeKey) || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.getElementById("color").value = c;
+      document.documentElement.style.setProperty('--primary', c);
+      if (th === 'dark') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark');
+      return t;
+    }
+
+    function saveSettings(targetIso) {
+      localStorage.setItem(targetKey, targetIso);
+    }
+
+    function updateColor() {
+      const c = document.getElementById("color").value;
+      localStorage.setItem(colorKey, c);
+      document.documentElement.style.setProperty('--primary', c);
+    }
+
+    function update() {
+      const targetIso = localStorage.getItem(targetKey) || defaultTarget;
+      const target = new Date(targetIso).getTime();
+      const now = new Date().getTime();
+      let diff = target - now;
+      if (diff <= 0) {
+        document.getElementById("count").textContent = "¡Llegó la fecha! 🎉";
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      diff -= days * (1000 * 60 * 60 * 24);
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      diff -= hours * (1000 * 60 * 60);
+      const minutes = Math.floor(diff / (1000 * 60));
+      diff -= minutes * (1000 * 60);
+      const seconds = Math.floor(diff / 1000);
+      document.getElementById("count").textContent = days + " días, " + hours + " horas, " + minutes + " minutos, " + seconds + " segundos";
+    }
+
+    // Initialize
+    const initial = loadSettings();
+    saveSettings(initial);
+    update();
+    setInterval(update, 1000);
+
+    // Controls
+    document.getElementById("color").addEventListener('input', updateColor);
+    document.getElementById("toggleTheme").addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      const th = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      localStorage.setItem(themeKey, th);
+    });
+    document.getElementById("edit").addEventListener('click', () => {
+      const dlg = document.getElementById('dialog');
+      const cur = (localStorage.getItem('countdown_target') || defaultTarget).slice(0,19);
+      // Convert to local datetime-local value (remove zone offset if present)
+      const d = new Date(localStorage.getItem('countdown_target') || defaultTarget);
+      const localIso = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0,19);
+      document.getElementById('targetInput').value = localIso;
+      dlg.showModal();
+    });
+    document.getElementById('save').addEventListener('click', (e) => {
+      const val = document.getElementById('targetInput').value;
+      if (val) {
+        // interpret as local time and convert to ISO with current offset
+        const dt = new Date(val);
+        const iso = new Date(dt.getTime() - (dt.getTimezoneOffset()*60000)).toISOString();
+        localStorage.setItem('countdown_target', iso);
+        update();
+      }
+      document.getElementById('dialog').close();
+    });
+    document.getElementById('cancel').addEventListener('click', () => document.getElementById('dialog').close());
+
+    // Service worker registration for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    }
+  </script>
+</body>
+</html>
